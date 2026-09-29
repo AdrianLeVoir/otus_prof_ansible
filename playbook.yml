@@ -1,0 +1,51 @@
+---
+# hw10 — первые шаги с Ansible: nginx из jinja2-шаблона на порту {{ nginx_port }}
+- name: Deploy nginx from template
+  hosts: nginx
+  become: true
+
+  vars:
+    nginx_port: 8080
+    worker_processes: 1
+    keepalive_timeout: 65
+
+  handlers:
+    - name: start nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+        enabled: true
+        daemon_reload: true
+
+  tasks:
+    - name: Install nginx (yum module)
+      ansible.builtin.yum:
+        name: nginx
+        state: present
+      notify: start nginx
+
+    - name: Deploy nginx.conf from jinja2 template
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: start nginx
+
+    - name: Verify nginx is running and enabled
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Check port 8080 responds
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ nginx_port }}/"
+        return_content: true
+      register: result
+      failed_when: result.status != 200
+
+    - name: Show check result
+      ansible.builtin.debug:
+        msg: "nginx on port {{ nginx_port }}: HTTP {{ result.status }}"
